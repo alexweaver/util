@@ -16,7 +16,7 @@ def zip_uint8(A, bits=8):
 	# takes an array-like of integers and number of bits to encode with
 
 	A = np.array(A, dtype=np.uint8)
-	if bits == 8: return A
+	if bits == 8: return A.flatten()
 
 	# get shape and axis for array manipulation
 
@@ -39,14 +39,16 @@ def zip_uint8(A, bits=8):
 
 def unzip_uint8(A, shape=(-1,), bits=8):
 
-	# calculate shape for array manipulation
+	A = np.array(A, dtype=np.uint8)
+	if bits == 8: return A.reshape(shape)
 
+	# get shape and axis for array manipulation
+
+	axis = len(shape)
 	shape = (*shape, bits)
-	axis = len(shape) - 1
 
 	# unback bit arrays
 
-	A = np.array(A, dtype=np.uint8)
 	A = np.unpackbits(A)
 
 	# remove extra bits creted when unpacking and reshape
@@ -58,13 +60,10 @@ def unzip_uint8(A, shape=(-1,), bits=8):
 
 	A = A.reshape(shape)
 
-	# pad with extra zeros if necessary
+	# pad with extra zeros
 
-	if bits == 8: B = A
-	else: 
-
-		B = np.zeros((*A.shape[:-1], 8), dtype=np.uint8)
-		B[..., -bits:] = A
+	B = np.zeros((*A.shape[:-1], 8), dtype=np.uint8)
+	B[..., -bits:] = A
 
 	# re-pack bits
 
@@ -78,5 +77,5 @@ def unzip_uint8(A, shape=(-1,), bits=8):
 
 if __name__ == '__main__':
 
-	x = zip_uint8([[12, 1, 56, 34, 0, 63, 13, 5, 0, 2, 45, 9]], bits=6)
-	print(unzip_uint8(x, shape=(2, 3, 2), bits=6))
+	x = zip_uint8([[12, 1, 56, 34, 0, 63, 13, 5, 0, 2, 45, 9]], bits=8)
+	print(unzip_uint8(x, shape=None, bits=8))
