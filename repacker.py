@@ -6,8 +6,77 @@
 import math
 import numpy as np
 
-from functools import reduce
+from functools import partial, reduce
 from operator import mul
+from types import MethodType
+
+
+
+class ByteArray:
+
+
+	def __init__(self, obj, *args, **kwargs):
+
+		if isinstance(obj, ByteArray): obj = obj._array
+		self._array = np.array(obj, *args, dtype=np.uint8, **kwargs)
+
+
+	def unpackbits(self, *args, **kwargs):
+
+		return ByteArray(np.unpackbits(self._array, *args, **kwargs))
+
+
+	def packbits(self, *args, **kwargs):
+
+		return ByteArray(np.packbits(self._array, *args, **kwargs))
+
+
+	@property
+	def shape(self):
+
+		return self._array.shape
+
+
+	def expand_dims(self, *args, **kwargs):
+
+		return ByteArray(np.expand_dims(self._array, *args, **kwargs))
+
+
+	def flatten(self, *args, **kwargs):
+
+		return ByteArray(self._array.flatten(*args, **kwargs))
+
+
+	def reshape(self, *args, **kwargs):
+
+		return ByteArray(self._array.reshape(*args, **kwargs))
+
+
+	def squeeze(self, *args, **kwargs):
+
+		return ByteArray(self._array.squeeze(*args, **kwargs))
+
+
+	@property
+	def nbytes(self, *args, **kwargs):
+
+		return self._array.nbytes
+
+
+	def __getitem__(self, key):
+
+		return ByteArray(self._array[key])
+
+
+	def __setitem__(self, key, value):
+
+		if isinstance(value, ByteArray): value = value._array
+		self._array[key] = value
+
+
+	def __str__(self):
+
+		return str(self._array)
 
 
 
@@ -15,7 +84,7 @@ def packbits(A, bits=8):
 
 	# takes an array-like of uint8 and number of bits to encode with
 
-	A = np.array(A, dtype=np.uint8)
+	A = ByteArray(A)
 	if bits == 8: return A.flatten()
 
 	# get shape and axis for array manipulation
@@ -23,17 +92,9 @@ def packbits(A, bits=8):
 	shape = A.shape
 	axis = len(shape)
 
-	# add dimension to store unpacked bits
+	# add dimension to store unpacked bits, convert to bitarray, take only last bits, flatten, repack bits and return
 
-	A = np.expand_dims(A, axis=axis)
-
-	# convert to bitarray, take only last bits, and flatten
-
-	A = np.unpackbits(A, axis=axis)[..., -bits:].flatten()
-
-	# return re-packed bits
-
-	return np.packbits(A)
+	return A.expand_dims(axis=axis).unpackbits(axis=axis)[..., -bits:].flatten().packbits()._array
 
 
 
@@ -41,7 +102,7 @@ def unpackbits(A, bits=8, shape=(-1,)):
 
 	# takes a flat array-like of uint8 and number of bits to decode per entry
 
-	A = np.array(A, dtype=np.uint8)
+	A = ByteArray(A)
 	if bits == 8: return A.reshape(shape)
 
 	# get shape and axis for array manipulation
@@ -51,7 +112,7 @@ def unpackbits(A, bits=8, shape=(-1,)):
 
 	# unback bit arrays
 
-	A = np.unpackbits(A)
+	A = A.unpackbits()
 
 	# remove extra bits creted when unpacking and reshape
 
@@ -64,21 +125,26 @@ def unpackbits(A, bits=8, shape=(-1,)):
 
 	# pad with extra zeros
 
-	B = np.zeros((*A.shape[:-1], 8), dtype=np.uint8)
+	B = ByteArray(np.zeros((*A.shape[:-1], 8)))
 	B[..., -bits:] = A
 
-	# re-pack bits
+	# repack bits, squeeze added index, and return
 
-	A = np.packbits(B, axis=axis)
-
-	# squeeze added index and return
-
-	return np.squeeze(A, axis=axis)
+	return B.packbits(axis=axis).squeeze(axis=axis)
 
 
 
 if __name__ == '__main__':
 
-	x = packbits([[12, 1, 56, 34, 0, 63, 13, 5, 0, 2, 45, 9]], bits=8)
+	x = np.array([[[True, False], [False, True]], [[True, True], [False, False]]])
+	print(x)
 	print(x.nbytes)
-	print(unpackbits(x, shape=(4, 3), bits=8))
+
+	x = packbits(x, bits=1)
+	print(x)
+	print(x.nbytes)
+
+	x = unpackbits(x, shape=(-1, 2, 2), bits=1)
+	print(x)
+	print(x.nbytes)
+
