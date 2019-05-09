@@ -11,9 +11,9 @@ from operator import mul
 
 
 
-def zip_uint8(A, bits=8):
+def packbits(A, bits=8):
 
-	# takes an array-like of integers and number of bits to encode with
+	# takes an array-like of uint8 and number of bits to encode with
 
 	A = np.array(A, dtype=np.uint8)
 	if bits == 8: return A.flatten()
@@ -37,7 +37,9 @@ def zip_uint8(A, bits=8):
 
 
 
-def unzip_uint8(A, shape=(-1,), bits=8):
+def unpackbits(A, bits=8, shape=(-1,)):
+
+	# takes a flat array-like of uint8 and number of bits to decode per entry
 
 	A = np.array(A, dtype=np.uint8)
 	if bits == 8: return A.reshape(shape)
@@ -77,5 +79,6 @@ def unzip_uint8(A, shape=(-1,), bits=8):
 
 if __name__ == '__main__':
 
-	x = zip_uint8([[12, 1, 56, 34, 0, 63, 13, 5, 0, 2, 45, 9]], bits=8)
-	print(unzip_uint8(x, shape=None, bits=8))
+	x = packbits([[12, 1, 56, 34, 0, 63, 13, 5, 0, 2, 45, 9]], bits=8)
+	print(x.nbytes)
+	print(unpackbits(x, shape=(4, 3), bits=8))
