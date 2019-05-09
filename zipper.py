@@ -6,6 +6,9 @@
 import math
 import numpy as np
 
+from functools import reduce
+from operator import mul
+
 
 
 def zip_uint8(A, bits=8):
@@ -15,15 +18,31 @@ def zip_uint8(A, bits=8):
 	A = np.array(A, dtype=np.uint8)
 	if bits == 8: return A
 
-	# convert to bitarray, reshape to arrays of length 8 and take only last bits, flatten
+	# get shape and axis for array manipulation
 
-	A = np.unpackbits(A).reshape(-1, 8)[:, -bits:].flatten()
+	shape = A.shape
+	axis = len(shape)
+
+	# add dimension to store unpacked bits
+
+	A = np.expand_dims(A, axis=axis)
+
+	# convert to bitarray, take only last bits, and flatten
+
+	A = np.unpackbits(A, axis=axis)[..., -bits:].flatten()
+
+	# return re-packed bits
 
 	return np.packbits(A)
 
 
 
-def unzip_uint8(A, bits=8):
+def unzip_uint8(A, shape=(-1,), bits=8):
+
+	# calculate shape for array manipulation
+
+	shape = (*shape, bits)
+	axis = len(shape) - 1
 
 	# unback bit arrays
 
@@ -32,18 +51,32 @@ def unzip_uint8(A, bits=8):
 
 	# remove extra bits creted when unpacking and reshape
 
-	if bits < 8: A = A[:-np.remainder(len(A), bits)]
+	remainder = np.remainder(reduce(mul, shape), bits)
+	if remainder: A = A[:-remainder]
 
-	# reshape into entries of A
+	# reshape bit array into entries
 
-	A = A.reshape(-1, bits)
+	A = A.reshape(shape)
 
 	# pad with extra zeros if necessary
 
 	if bits == 8: B = A
 	else: 
 
-		B = np.zeros((len(A), 8), dtype=np.uint8)
-		B[:, -bits:] = A
+		B = np.zeros((*A.shape[:-1], 8), dtype=np.uint8)
+		B[..., -bits:] = A
 
-	return np.packbits(B)
+	# re-pack bits
+
+	A = np.packbits(B, axis=axis)
+
+	# squeeze added index and return
+
+	return np.squeeze(A, axis=axis)
+
+
+
+if __name__ == '__main__':
+
+	x = zip_uint8([[12, 1, 56, 34, 0, 63, 13, 5, 0, 2, 45, 9]], bits=6)
+	print(unzip_uint8(x, shape=(2, 3, 2), bits=6))
