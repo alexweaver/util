@@ -15,6 +15,8 @@ def Timer(logger=None, callback='Total time: {time:.3f}s'):
 
     yield timer
 
+    print(callback.format(**{'time': timer.age}))
+
     if logger is not None:
 
         logger.debug(callback.format(**{'time': timer.age}))
@@ -71,7 +73,7 @@ class _Timer(object):
         self._checkpoint = self.now
 
 
-    @property:
+    @property
     def checkpoint(self):
 
         # get checkpoint time
