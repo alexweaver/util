@@ -58,20 +58,9 @@ class Array:
 
 		return self.__class__(np.expand_dims(self._array, *args, **kwargs))
 
+	def pad(self, *args, **kwargs):
 
-	def tobytes(self, *args, **kwargs):
-
-		return self._array.tobytes()
-
-
-	def view(self, dtype, *args, **kwargs):
-
-		return self.__class__(self._array.view(dtype, *args, **kwargs), dtype=dtype)
-
-
-	def byteswap(self, *args, **kwargs):
-
-		return self.__class__(self._array.byteswap())
+		return self.__class__(np.pad(self._array, *args, **kwargs))
 
 
 	# methods of the form arr.func(...)
@@ -90,6 +79,21 @@ class Array:
 	def squeeze(self, *args, **kwargs):
 
 		return self.__class__(self._array.squeeze(*args, **kwargs))
+
+
+	def tobytes(self, *args, **kwargs):
+
+		return self._array.tobytes()
+
+
+	def view(self, dtype, *args, **kwargs):
+
+		return self.__class__(self._array.view(dtype, *args, **kwargs), dtype=dtype)
+
+
+	def byteswap(self, *args, **kwargs):
+
+		return self.__class__(self._array.byteswap())
 
 
 	# magic methods
@@ -147,7 +151,8 @@ def repackbits(A, dtype, bits=None):
 
 def unpackbits(A, dtype, bits=None, shape=(-1,)):
 
-	bits = bits if bits else 8 * np.dtype(dtype).itemsize
+	itemsize = np.dtype(dtype).itemsize
+	bits = bits if bits else 8 * itemsize
 
 	# takes a flat array-like of uint8 and number of bits to decode per entry
 
@@ -158,26 +163,21 @@ def unpackbits(A, dtype, bits=None, shape=(-1,)):
 	# get shape for array manipulation
 
 	shape = (*shape, bits)
-
-	# unpack bit arrays
-
-	A = A.unpackbits()
-
-	# remove extra bits created when unpacking and reshape
-
 	remainder = np.remainder(reduce(mul, shape), bits)
-	if remainder: A = A[:-remainder]
 
+	# unpack bit arrays and remove extra bits created when unpacking
 	# reshape bit array into entries
+	# pad last axis with extra 0's
+	# pack bits
+	# convert to original data type
+	# swap bytes
+	# squeeze off extra index
+	# return
 
-	A = A.reshape(shape)
-
-	# pad with extra zeros
-
-	B = Array(np.zeros((*A.shape[:-1], 8 * itemsize), dtype=uint8))
-	B[..., -bits:] = A
-
-	return B.packbits(axis=-1) \
+	return A.unpackbits()[:-remainder or None] \
+		.reshape(shape) \
+		.pad([(0, 0)] * (len(shape) - 1) + [(8 * itemsize - bits, 0)], 'constant', constant_values=0) \
+		.packbits(axis=-1) \
 		.view(dtype=dtype) \
 		.byteswap() \
 		.squeeze(axis=-1)
