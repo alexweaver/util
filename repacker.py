@@ -5,11 +5,18 @@
 
 import math
 import numpy as np
+import gzip
 
 from functools import partial, reduce
 from operator import mul
 from types import MethodType
-from numpy import packbits, uint8
+from numpy import packbits, uint8, int8, int16, int32
+from math import pow
+
+
+
+SIGNED_TYPES = set([int8, int16, int32])
+
 
 
 class Array:
@@ -121,15 +128,21 @@ class Array:
 		return self.__class__(self._array + other)
 
 
+	def __sub__(self, other):
+
+		if isinstance(other, self.__class__): other = other._array
+		return self.__class__(self._array - other)
+
+
 
 def repackbits(A, dtype, bits=None):
 
-	bits = bits if bits else 8 * np.dtype(dtype).itemsize
+	itemsize = np.dtype(dtype).itemsize
+	bits = bits if bits else 8 * itemsize
 
-	# takes an array-like, A
+	# handle signed data types
 
-	A = Array(A, dtype=dtype)
-	if bits == 8 * np.dtype(dtype).itemsize: return A.flatten()
+	if dtype in SIGNED_TYPES: A = A + 2 ** (bits - 1)
 
 	# add dimension to store unpacked bits
 	# swap byte order
@@ -139,7 +152,8 @@ def repackbits(A, dtype, bits=None):
 	# repack bits
 	# return bytes
 
-	return A.expand_dims(axis=-1) \
+	return Array(A, dtype='u{0}'.format(itemsize)) \
+			.expand_dims(axis=-1) \
 			.byteswap() \
 			.view(uint8) \
 			.unpackbits(axis=-1)[..., -bits:] \
@@ -155,11 +169,6 @@ def unpackbits(A, dtype, bits=None, shape=(-1,)):
 	bits = bits if bits else 8 * itemsize
 	shape = (*shape, bits)
 
-	# takes a flat array-like of uint8 and number of bits to decode per entry
-
-	A = Array(np.frombuffer(A, dtype=uint8), dtype=uint8)
-	if bits == 8 * itemsize: return A.reshape(shape)
-
 	# unpack bit arrays and remove extra bits created when unpacking
 	# reshape bit array into entries
 	# pad last axis with extra 0's
@@ -167,30 +176,49 @@ def unpackbits(A, dtype, bits=None, shape=(-1,)):
 	# convert to original data type
 	# swap bytes
 	# squeeze off extra index
-	# return
 
-	return A.unpackbits()[:-(np.remainder(reduce(mul, shape), bits)) or None] \
+	A = Array(np.frombuffer(A, dtype=uint8), dtype=uint8) \
+		.unpackbits()[:-(np.remainder(reduce(mul, shape), bits)) or None] \
 		.reshape(shape) \
 		.pad([(0, 0)] * (len(shape) - 1) + [(8 * itemsize - bits, 0)], 'constant', constant_values=0) \
 		.packbits(axis=-1) \
-		.view(dtype=dtype) \
+		.view(dtype='u{0}'.format(itemsize)) \
 		.byteswap() \
 		.squeeze(axis=-1)
+
+	# calculate offset for signed data types
+
+	if dtype in SIGNED_TYPES: A = A - 2 ** (bits - 1)
+
+	# return
+
+	return Array(A, dtype=dtype)
 
 
 
 if __name__ == '__main__':
 
-	x = np.array([[[1, 16], [30, 3]], [[134, 2], [300, 40]]], dtype=np.uint16)
+	a = np.array(np.random.randint(-1, 2, size=(1000000, 5)), dtype=np.int8)
 
-	print(x)
-	print(x.nbytes)
+	print(a)
+	print(a.nbytes)
 
-	x = repackbits(x, dtype=np.uint16, bits=11)
-	print(x)
+	x = repackbits(a, dtype=np.int8, bits=2)
 	print(len(x))
 
-	x = unpackbits(x, dtype=np.uint16, shape=(-1, 2, 2), bits=11)
+	with gzip.open('a.gzip', 'wb') as f:
+
+		f.write(a)	
+
+	with gzip.open('x.gzip', 'wb') as f:
+
+		f.write(x[0:(len(x) - 1)])
+
+	with open('f', 'wb') as f:
+
+		f.write(a)
+
+	x = unpackbits(x, dtype=np.int8, shape=(-1, 5), bits=2)
 	print(x)
 	print(x.nbytes)
 
