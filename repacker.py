@@ -154,7 +154,6 @@ def unpackbits(A, dtype, bits=None, shape=(-1,)):
 	itemsize = np.dtype(dtype).itemsize
 	bits = bits if bits else 8 * itemsize
 	shape = (*shape, bits)
-	remainder = np.remainder(reduce(mul, shape), bits)
 
 	# takes a flat array-like of uint8 and number of bits to decode per entry
 
@@ -170,7 +169,7 @@ def unpackbits(A, dtype, bits=None, shape=(-1,)):
 	# squeeze off extra index
 	# return
 
-	return A.unpackbits()[:-remainder or None] \
+	return A.unpackbits()[:-(np.remainder(reduce(mul, shape), bits)) or None] \
 		.reshape(shape) \
 		.pad([(0, 0)] * (len(shape) - 1) + [(8 * itemsize - bits, 0)], 'constant', constant_values=0) \
 		.packbits(axis=-1) \
