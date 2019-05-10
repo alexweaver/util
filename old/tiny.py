@@ -8,6 +8,8 @@ import gzip
 from functools import partial, reduce
 from operator import mul
 from numpy import *
+from timing import Timer
+import os
 
 
 
@@ -18,8 +20,8 @@ SIGNED_TYPES = set([int8, int16, int32])
 def pack_int(A, datatype, low=None, high=None):
 
 	itemsize = dtype(datatype).itemsize
-	high = high if high else max(A)
-	low = low if low else min(A)
+	high = high if high is not None else max(A)
+	low = low if low is not None else min(A)
 	bits = int(ceil(log2(high + 1 - low)))
 
 	# handle signed data types
@@ -48,9 +50,43 @@ def pack_int(A, datatype, low=None, high=None):
 
 
 
+def packbitarray(A, datatype, low=None, high=None):
+
+	itemsize = dtype(datatype).itemsize
+	high = high if high is not None else max(A)
+	low = low if low is not None else min(A)
+	bits = int(ceil(log2(high + 1 - low)))
+
+	# handle signed data types
+
+	if datatype in SIGNED_TYPES: A = A + 2 ** (bits - 1)
+
+	# cast A to numpy array
+
+	A = array(A, dtype='u{0}'.format(itemsize))
+
+	# add dimension to store unpacked bits and convert to ordered bytes
+
+	A = expand_dims(A, axis=-1).byteswap().view(uint8)
+
+	# convert to bitarray
+
+	A = unpackbits(A, axis=-1)
+
+	# take only last bits and flatten
+
+	A = A[..., -bits:].flatten()
+
+	# repack bits and return bytes
+
+	return packbits(A).tobytes()
+
+
 def unpack_int(A, datatype, low, high, shape=(-1,)):
 
 	itemsize = dtype(datatype).itemsize
+	high = high if high is not None else max(A)
+	low = low if low is not None else min(A)
 	bits = int(ceil(log2(high + 1 - low)))
 	shape = (*shape, bits)
 
@@ -102,27 +138,39 @@ def unpack_int(A, datatype, low, high, shape=(-1,)):
 
 if __name__ == '__main__':
 
-	a = array(random.randint(-1, 2, size=(1000000, 5)), dtype=int8)
+	high = int(2)
+	datatype = uint8
 
+	a = array(random.randint(0, high, size=(1000000, 1000)), dtype=datatype)
 	print(a)
-	print(a.nbytes)
 
-	x = pack_int(a, datatype=int8, low=-1, high=1)
-	print(len(x))
+	with Timer(callback="Time to save tiny gzip: {time:.3f}s") as t:
 
-	with gzip.open('a.gzip', 'wb') as f:
+		x = pack_int(a, datatype=datatype, low=0, high=high)
 
-		f.write(a)	
+		with gzip.open('tiny_gzip.gzip', 'wb') as f:
 
-	with gzip.open('x.gzip', 'wb') as f:
+			f.write(x)
 
-		f.write(x[0:(len(x) - 1)])
+	print(os.path.getsize('tiny_gzip.gzip'))
 
-	with open('f', 'wb') as f:
+	with Timer(callback="Time to save gzip only: {time:.3f}s") as t:
 
-		f.write(a)
+		with gzip.open('gzip_only.gzip', 'wb') as f:
 
-	x = unpack_int(x, datatype=int8, low=-1, high=1, shape=(-1, 5))
-	print(x)
-	print(x.nbytes)
+			f.write(a)
 
+	print(os.path.getsize('gzip_only.gzip'))
+
+	with Timer(callback="Time to read tiny gzip: {time:.3f}s") as t:
+
+		with gzip.open('tiny_gzip.gzip', 'rb') as f:
+
+			a = unpack_int(f.read(), datatype=datatype, low=0, high=high, shape=(-1, 5))
+			print(a)
+
+	with Timer(callback="Time to read gzip only: {time:.3f}s") as t:
+
+		with gzip.open('gzip_only.gzip', 'rb') as f:
+
+			f.read()
