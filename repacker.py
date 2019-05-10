@@ -153,17 +153,13 @@ def unpackbits(A, dtype, bits=None, shape=(-1,)):
 
 	itemsize = np.dtype(dtype).itemsize
 	bits = bits if bits else 8 * itemsize
+	shape = (*shape, bits)
+	remainder = np.remainder(reduce(mul, shape), bits)
 
 	# takes a flat array-like of uint8 and number of bits to decode per entry
 
-	itemsize = np.dtype(dtype).itemsize
 	A = Array(np.frombuffer(A, dtype=uint8), dtype=uint8)
 	if bits == 8 * itemsize: return A.reshape(shape)
-
-	# get shape for array manipulation
-
-	shape = (*shape, bits)
-	remainder = np.remainder(reduce(mul, shape), bits)
 
 	# unpack bit arrays and remove extra bits created when unpacking
 	# reshape bit array into entries
